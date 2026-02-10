@@ -1,6 +1,7 @@
-import { LitElement, css, html } from 'lit';
+import { LitElement, html, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { Grid } from '../slipped-stitches-app';
+import styles from './output-display.css?inline';
 
 @customElement('output-display')
 export class OutputDisplay extends LitElement {
@@ -9,6 +10,9 @@ export class OutputDisplay extends LitElement {
 
   @property({ type: Array })
   colors: string[] = [];
+
+  @property({ type: String })
+  foundationColor: string = '#db8fff';
 
   /**
    * Calculate the visual output based on the pattern and row colors.
@@ -37,10 +41,12 @@ export class OutputDisplay extends LitElement {
           lastKnitRow[stitchIndex] = rowIndex;
           outputRow.push(this.colors[rowIndex]);
         } else {
-          // This stitch is slipped, use color from last knit row
+          // This stitch is slipped, use color from last knit row or foundation
           const lastKnitRowIndex = lastKnitRow[stitchIndex];
           outputRow.push(
-            lastKnitRowIndex >= 0 ? this.colors[lastKnitRowIndex] : '#cccccc'
+            lastKnitRowIndex >= 0
+              ? this.colors[lastKnitRowIndex]
+              : this.foundationColor
           );
         }
       }
@@ -53,21 +59,25 @@ export class OutputDisplay extends LitElement {
 
   render() {
     const output = this.calculateOutput();
-    const stitchCount = output[0]?.length || 0;
+    // Reverse output for display (knitters work bottom-up)
+    const reversedOutput = [...output].reverse();
+    const stitchCount = reversedOutput[0]?.length || 0;
+    // Calculate responsive cell size (min 8px, max 20px)
+    const cellSize = Math.max(8, Math.min(20, Math.floor(600 / stitchCount)));
 
     return html`
       <div class="output-container">
         <div
           class="output-grid"
-          style="grid-template-columns: repeat(${stitchCount}, 20px)"
+          style="grid-template-columns: repeat(${stitchCount}, ${cellSize}px)"
         >
-          ${output.map(
+          ${reversedOutput.map(
             (row) => html`
               ${row.map(
                 (color) => html`
                   <div
                     class="output-cell"
-                    style="background-color: ${color}"
+                    style="background-color: ${color}; width: ${cellSize}px; height: ${cellSize}px"
                   ></div>
                 `
               )}
@@ -78,29 +88,7 @@ export class OutputDisplay extends LitElement {
     `;
   }
 
-  static styles = css`
-    :host {
-      display: block;
-    }
-
-    .output-container {
-      display: flex;
-      justify-content: center;
-    }
-
-    .output-grid {
-      display: grid;
-      gap: 1px;
-      background-color: #ccc;
-      border: 1px solid #999;
-      width: fit-content;
-    }
-
-    .output-cell {
-      width: 20px;
-      height: 20px;
-    }
-  `;
+  static styles = unsafeCSS(styles);
 }
 
 declare global {

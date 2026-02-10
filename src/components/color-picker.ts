@@ -1,18 +1,27 @@
-import { LitElement, css, html } from 'lit';
+import { LitElement, html, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import styles from './color-picker.css?inline';
 
 @customElement('color-picker')
 export class ColorPicker extends LitElement {
   @property({ type: Number })
   rows = 10;
 
+  @property({ type: Number })
+  stitches = 10;
+
   @property({ type: Array })
   colors: string[] = [];
 
-  private handleColorChange(rowIndex: number, e: Event) {
-    const input = e.target as HTMLInputElement;
+  @property({ type: Array })
+  palette: string[] = ['#db8fff', '#ffbe33', '#ffffff', '#ffffff'];
+
+  @property({ type: String })
+  foundationColor: string = '#db8fff';
+
+  private handleRowColorSelect(rowIndex: number, paletteIndex: number) {
     const newColors = [...this.colors];
-    newColors[rowIndex] = input.value;
+    newColors[rowIndex] = this.palette[paletteIndex];
 
     this.dispatchEvent(
       new CustomEvent('color-change', {
@@ -23,63 +32,83 @@ export class ColorPicker extends LitElement {
     );
   }
 
+  private handleFoundationColorSelect(paletteIndex: number) {
+    this.dispatchEvent(
+      new CustomEvent('foundation-color-change', {
+        detail: { foundationColor: this.palette[paletteIndex] },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
   render() {
+    // Reverse colors for display (knitters work bottom-up)
+    const reversedColors = [...this.colors].reverse();
+    // Calculate responsive cell size (min 8px, max 20px) to match grid
+    const cellSize = Math.max(8, Math.min(20, Math.floor(600 / this.stitches)));
+
     return html`
-      <div class="color-list">
-        ${this.colors.map(
-          (color, index) => html`
-            <div class="color-row">
-              <label>Row ${index + 1}:</label>
-              <input
-                type="color"
-                .value=${color}
-                @input=${(e: Event) => this.handleColorChange(index, e)}
-              />
-              <div class="color-preview" style="background-color: ${color}"></div>
-            </div>
-          `
-        )}
+      <div class="color-grid-container">
+        <div class="grid-with-labels">
+          <div
+            class="color-grid"
+            style="grid-template-rows: repeat(${this.rows +
+            1}, ${cellSize}px); grid-template-columns: repeat(4, ${cellSize}px)"
+          >
+            ${reversedColors.map((color, displayIndex) => {
+              // Calculate actual row index (reversed)
+              const actualRowIndex = this.colors.length - 1 - displayIndex;
+              return html`
+                ${this.palette.map(
+                  (paletteColor, paletteIndex) => html`
+                    <div
+                      class="color-cell ${color === paletteColor
+                        ? 'selected'
+                        : ''}"
+                      style="background-color: ${paletteColor}; width: ${cellSize}px; height: ${cellSize}px"
+                      @click=${() =>
+                        this.handleRowColorSelect(actualRowIndex, paletteIndex)}
+                      title="Row ${actualRowIndex + 1}: Color ${paletteIndex +
+                      1}"
+                    ></div>
+                  `
+                )}
+              `;
+            })}
+
+            <!-- Foundation Row (Row 0) -->
+            ${this.palette.map(
+              (paletteColor, paletteIndex) => html`
+                <div
+                  class="color-cell foundation ${this.foundationColor ===
+                  paletteColor
+                    ? 'selected'
+                    : ''}"
+                  style="background-color: ${paletteColor}; width: ${cellSize}px; height: ${cellSize}px"
+                  @click=${() => this.handleFoundationColorSelect(paletteIndex)}
+                  title="Foundation: Color ${paletteIndex + 1}"
+                ></div>
+              `
+            )}
+          </div>
+          <div class="row-labels">
+            ${reversedColors.map((_, displayIndex) => {
+              const actualRowIndex = this.colors.length - 1 - displayIndex;
+              return html`
+                <div class="row-label" style="height: ${cellSize}px">
+                  ${actualRowIndex + 1}
+                </div>
+              `;
+            })}
+            <div class="row-label" style="height: ${cellSize}px">F</div>
+          </div>
+        </div>
       </div>
     `;
   }
 
-  static styles = css`
-    :host {
-      display: block;
-    }
-
-    .color-list {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-
-    .color-row {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .color-row label {
-      min-width: 60px;
-      font-size: 0.9rem;
-    }
-
-    input[type='color'] {
-      width: 50px;
-      height: 30px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    .color-preview {
-      width: 30px;
-      height: 30px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-    }
-  `;
+  static styles = unsafeCSS(styles);
 }
 
 declare global {

@@ -1,0 +1,172 @@
+:host {
+  display: block;
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+header {
+  margin-bottom: 2rem;
+}
+
+h1 {
+  color: #333;
+  margin: 0 0 1rem 0;
+}
+
+.controls {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.controls label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+}
+
+.controls input[type='number'] {
+  width: 80px;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.file-input-label {
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  background-color: #4a90e2;
+  color: white;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.file-input-label:hover {
+  background-color: #357abd;
+}
+
+.file-input {
+  display: none;
+}
+
+.export-button {
+  padding: 0.5rem 1rem;
+  background-color: #50c878;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.export-button:hover {
+  background-color: #3ea65e;
+}
+
+.preview-button {
+  padding: 0.5rem 1rem;
+  background-color: #9b59b6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.preview-button:hover {
+  background-color: #8e44ad;
+}
+
+.clear-button {
+  padding: 0.5rem 1rem;
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.clear-button:hover {
+  background-color: #c0392b;
+}
+
+.palette-section {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.palette-section label {
+  font-weight: 500;
+}
+
+.palette-colors {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.palette-color-input {
+  width: 40px;
+  height: 40px;
+  border: 2px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.palette-color-input:hover {
+  border-color: #999;
+}
+
+.workspace {
+  display: flex;
+  justify-content: center;
+}
+
+.panel {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 1400px;
+}
+
+.grids-container {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  gap: 1rem;
+  align-items: start;
+  justify-content: start;
+}
+
+.grid-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.grid-section h2 {
+  margin: 0;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+@media (max-width: 1024px) {
+  .grids-container {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+}
