@@ -35,6 +35,18 @@ export class SlippedStitchesApp extends LitElement {
   @state()
   private previewScale = 2;
 
+  @state()
+  private showColorColumnDialog = false;
+
+  @state()
+  private pendingImportData: {
+    pattern: Grid;
+    fullPattern: Grid;
+    rows: number;
+    stitches: number;
+    lastColumn: string[];
+  } | null = null;
+
   connectedCallback() {
     super.connectedCallback();
     this.initializePattern();
@@ -152,33 +164,71 @@ export class SlippedStitchesApp extends LitElement {
         const imageData = ctx.getImageData(0, 0, img.width, img.height);
         const pixels = imageData.data;
 
-        // Convert pixels to pattern (brightness threshold for knit/slip)
-        // Read from bottom to top to match knitting orientation
-        const newPattern: Grid = [];
+        // Helper to get pixel color as hex
+        const getPixelColor = (x: number, y: number): string => {
+          const i = (y * img.width + x) * 4;
+          const r = pixels[i];
+          const g = pixels[i + 1];
+          const b = pixels[i + 2];
+          return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+        };
+
+        // Helper to check if color is black or white
+        const isBlackOrWhite = (color: string): boolean => {
+          return color === '#000000' || color === '#ffffff';
+        };
+
+        // Extract last column colors
+        const lastColumn: string[] = [];
         for (let y = img.height - 1; y >= 0; y--) {
-          const row: GridCell[] = [];
-          for (let x = 0; x < img.width; x++) {
-            const i = (y * img.width + x) * 4;
-            const r = pixels[i];
-            const g = pixels[i + 1];
-            const b = pixels[i + 2];
-            // Calculate brightness (0-255)
-            const brightness = (r + g + b) / 3;
-            // Dark pixels = knit, light pixels = slip
-            row.push(brightness < 128 ? 'knit' : 'slip');
-          }
-          newPattern.push(row);
+          lastColumn.push(getPixelColor(img.width - 1, y));
         }
 
-        // Update grid dimensions and pattern
-        this.rows = img.height;
-        this.stitches = img.width;
-        this.pattern = newPattern;
+        // Check if last column has any non-black/white colors
+        const hasColorInfo = lastColumn.some((color) => !isBlackOrWhite(color));
 
-        // Initialize row colors for new dimensions
-        this.rowColors = Array.from({ length: this.rows }, (_, i) =>
-          Math.floor(i / 2) % 2 === 0 ? '#db8fff' : '#ffbe33'
-        );
+        // Convert pixels to pattern - read both with and without last column
+        // Read from bottom to top to match knitting orientation
+        const readPattern = (width: number): Grid => {
+          const pattern: Grid = [];
+          for (let y = img.height - 1; y >= 0; y--) {
+            const row: GridCell[] = [];
+            for (let x = 0; x < width; x++) {
+              const i = (y * img.width + x) * 4;
+              const r = pixels[i];
+              const g = pixels[i + 1];
+              const b = pixels[i + 2];
+              const brightness = (r + g + b) / 3;
+              row.push(brightness < 128 ? 'knit' : 'slip');
+            }
+            pattern.push(row);
+          }
+          return pattern;
+        };
+
+        const patternWidth = img.width - 1; // Exclude last column
+        const newPattern = readPattern(patternWidth);
+        const fullPattern = readPattern(img.width); // Include last column
+
+        if (hasColorInfo) {
+          // Automatically use colors from last column
+          this.applyImportedData(
+            newPattern,
+            img.height,
+            patternWidth,
+            lastColumn
+          );
+        } else {
+          // Ask user if last column should be interpreted as colors
+          this.pendingImportData = {
+            pattern: newPattern,
+            fullPattern: fullPattern,
+            rows: img.height,
+            stitches: patternWidth,
+            lastColumn: lastColumn,
+          };
+          this.showColorColumnDialog = true;
+        }
       };
       img.src = event.target?.result as string;
     };
@@ -188,23 +238,99 @@ export class SlippedStitchesApp extends LitElement {
     input.value = '';
   }
 
+  private applyImportedData(
+    pattern: Grid,
+    rows: number,
+    stitches: number,
+    colors: string[]
+  ) {
+    // Pattern and colors are built bottom-up, so foundation is at the end
+    const foundationColor = colors[colors.length - 1];
+    const rowColors = colors.slice(0, -1); // All except last
+
+    // Extract unique colors from all imported colors to update palette
+    const uniqueColors = Array.from(new Set([foundationColor, ...rowColors]));
+
+    // Update palette with imported colors (pad with white if less than 4)
+    const newPalette = [...uniqueColors];
+    while (newPalette.length < 4) {
+      newPalette.push('#ffffff');
+    }
+    // Only use first 4 colors if more than 4 unique colors
+    this.palette = newPalette.slice(0, 4);
+
+    // Update grid dimensions and pattern
+    this.rows = rows - 1; // Exclude foundation row from row count
+    this.stitches = stitches;
+    this.pattern = pattern.slice(0, -1); // Remove last element (foundation row)
+    this.foundationColor = foundationColor;
+    this.rowColors = rowColors;
+  }
+
+  private handleColorColumnDialogYes() {
+    if (!this.pendingImportData) return;
+
+    const { pattern, rows, stitches, lastColumn } = this.pendingImportData;
+    this.applyImportedData(pattern, rows, stitches, lastColumn);
+    this.showColorColumnDialog = false;
+    this.pendingImportData = null;
+  }
+
+  private handleColorColumnDialogNo() {
+    if (!this.pendingImportData) return;
+
+    const { fullPattern, rows } = this.pendingImportData;
+
+    // Treat entire image as pattern (including last column)
+    this.rows = rows - 1; // Exclude foundation
+    this.stitches = fullPattern[0].length; // Full width
+    this.pattern = fullPattern.slice(0, -1); // Remove last element (foundation row)
+
+    // Initialize default colors
+    this.rowColors = Array.from({ length: this.rows }, (_, i) =>
+      Math.floor(i / 2) % 2 === 0 ? '#db8fff' : '#ffbe33'
+    );
+
+    this.showColorColumnDialog = false;
+    this.pendingImportData = null;
+  }
+
   private handleExportPNG() {
-    // Create canvas matching grid dimensions (1 pixel per cell)
+    // Create canvas with extra column for color info and extra row for foundation
     const canvas = document.createElement('canvas');
-    canvas.width = this.stitches;
-    canvas.height = this.rows;
+    canvas.width = this.stitches + 1; // +1 for color column
+    canvas.height = this.rows + 1; // +1 for foundation row
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     // Draw pattern from bottom to top to match import orientation
+    // Foundation row at y = 0 (bottom), pattern rows above it
     this.pattern.forEach((row, rowIndex) => {
       row.forEach((cell, x) => {
-        // Flip y-coordinate: row 0 becomes bottom row in image
-        const y = this.rows - 1 - rowIndex;
+        // Flip y-coordinate: row 0 becomes row 1 in image (foundation is at 0)
+        const y = this.rows - rowIndex;
         ctx.fillStyle = cell === 'knit' ? '#000000' : '#ffffff';
         ctx.fillRect(x, y, 1, 1);
       });
     });
+
+    // Draw foundation row at bottom (y = 0) - all knit for now
+    for (let x = 0; x < this.stitches; x++) {
+      ctx.fillStyle = '#000000'; // Foundation is always knit
+      ctx.fillRect(x, 0, 1, 1);
+    }
+
+    // Draw color information column (rightmost column)
+    // Pattern rows (from bottom up, starting at y = 1)
+    this.rowColors.forEach((color, rowIndex) => {
+      const y = this.rows - rowIndex;
+      ctx.fillStyle = color;
+      ctx.fillRect(this.stitches, y, 1, 1);
+    });
+
+    // Foundation row color at bottom
+    ctx.fillStyle = this.foundationColor;
+    ctx.fillRect(this.stitches, 0, 1, 1);
 
     // Convert to blob and download
     canvas.toBlob((blob) => {
@@ -396,6 +522,35 @@ export class SlippedStitchesApp extends LitElement {
           @close=${this.handlePreviewClose}
           @scale-change=${this.handlePreviewScaleChange}
         ></pattern-preview>
+
+        ${this.showColorColumnDialog
+          ? html`
+              <div class="dialog-overlay">
+                <div class="dialog">
+                  <h2>Import Last Column as Colors?</h2>
+                  <p>
+                    The last column of the imported image contains only black
+                    and white pixels. Should it be interpreted as color
+                    information or as part of the pattern?
+                  </p>
+                  <div class="dialog-buttons">
+                    <button
+                      class="dialog-button primary"
+                      @click=${this.handleColorColumnDialogYes}
+                    >
+                      Yes, use as colors
+                    </button>
+                    <button
+                      class="dialog-button"
+                      @click=${this.handleColorColumnDialogNo}
+                    >
+                      No, include in pattern
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `
+          : ''}
       </div>
     `;
   }
